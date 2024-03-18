@@ -7,6 +7,7 @@
 #include <mos_api.h>
 
 #include "math_utils.h"
+#include "fx_anim.h"
 
 
 
@@ -105,6 +106,8 @@ static void runDemo()
 	while(!quit) {	// not ESC, but is it from keyboard matrix?
 		if (noVsync || prevRefresh != nextRefresh) {
 			prevRefresh = nextRefresh;
+
+			fxAnimRun();
 
 			drawFps();
 		}
