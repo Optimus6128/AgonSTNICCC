@@ -35,7 +35,10 @@ enum {
 #define LH_ARGS(x) LB(x),HB(x)
 
 
+void agon_clearScreen();
+void agon_clearGScreen();
 void agon_plot_pixel(int16_t x, int16_t y, uint8_t color);
+void agon_draw_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t color);
 void agon_set_video_mode(uint8_t mode);
 void agon_swapBuffers();
 

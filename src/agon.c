@@ -28,12 +28,17 @@ static char* bigBuffer = NULL;
 void agon_plot_pixel(int16_t x, int16_t y, uint8_t color)
 {
   char buffer_set_color[] = {18, 0, color};
-
   VDP_WRITE(buffer_set_color, sizeof(buffer_set_color))
 
   char buffer_plot_pixel[] = {25, 69, LH_ARGS(x), LH_ARGS(y)};
-
   VDP_WRITE(buffer_plot_pixel, sizeof(buffer_plot_pixel))
+}
+
+void agon_draw_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t color)
+{
+	char buffer[] = { 18,0,color, 25,69,LH_ARGS(x0),LH_ARGS(y0), 25,69,LH_ARGS(x1),LH_ARGS(y1), 25,85,LH_ARGS(x2),LH_ARGS(y2) };
+
+	VDP_WRITE(buffer, sizeof(buffer));
 }
 
 void agon_set_video_mode(uint8_t mode)

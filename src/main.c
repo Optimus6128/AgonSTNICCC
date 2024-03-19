@@ -78,6 +78,8 @@ static void agonDeInit()
 
 static void initDemo()
 {
+	agon_set_video_mode(8);
+
 	vdp_cursor_enable(false);
 	vdp_logical_scr_dims(false);
 

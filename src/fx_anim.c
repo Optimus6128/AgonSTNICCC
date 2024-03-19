@@ -12,75 +12,74 @@
 
 typedef struct Point2D
 {
-	int x, y;
+	uint8_t x, y;
 }Point2D;
 
-typedef struct QuadStore
+typedef struct Triangle
 {
-	Point2D p0, p1, p2, p3;
-	unsigned char c;
-}QuadStore;
+	Point2D p0, p1, p2;
+	uint8_t c;
+}Triangle;
 
 typedef struct vec2i
 {
-	int x, y;
+	uint8_t x, y;
 }vec2i;
 
 
-static int block64index = 0;
+static uint8_t block64index = 0;
 
-static unsigned char *data = scene1_bin;
+static uint8_t *data = scene1_bin;
 
 static Point2D pt[16];
 
-static QuadStore quads[1024];
-static QuadStore *quadPtr;
-static int numQuads = 0;
+static Triangle triangles[1024];
+static uint8_t nextTriangle = 0;
 
 static bool mustClearScreen = false;
 
 
-static void addPolygon(Point2D *pt, int numVertices, unsigned char color)
+static void renderPolygons()
 {
-	int pBaseIndex = 0;
-	int pStartIndex = 1;
-	const int maxIndex = numVertices - 1;
+	for (uint8_t i=0; i<nextTriangle; ++i) {
+		Triangle *tri = &triangles[i];
+		agon_draw_triangle(tri->p0.x, tri->p0.y, tri->p1.x, tri->p1.y, tri->p2.x, tri->p2.y, tri->c);
+	}
+}
 
-	while(pStartIndex < maxIndex)
-	{
-		quadPtr->p0.x = pt[pBaseIndex].x;       quadPtr->p0.y = pt[pBaseIndex].y;
-		quadPtr->p1.x = pt[pStartIndex].x;      quadPtr->p1.y = pt[pStartIndex].y;
-		quadPtr->p2.x = pt[pStartIndex+1].x;    quadPtr->p2.y = pt[pStartIndex + 1].y;
+static void addPolygon(Point2D *point, uint8_t numVertices, uint8_t colorIndex)
+{
+	const uint8_t numTriangles = numVertices - 2;
 
-		pStartIndex += 2;
-		if (pStartIndex > maxIndex) pStartIndex = maxIndex;
-		quadPtr->p3.x = pt[pStartIndex].x;      quadPtr->p3.y = pt[pStartIndex].y;
+	Point2D *ptBase = point++;
 
-		quadPtr->c = color;
-
-		++quadPtr;
-		++numQuads;
+	for (uint8_t i=0; i<numTriangles; ++i) {
+		Triangle *trianglePtr = &triangles[nextTriangle++];
+		trianglePtr->p0.x = ptBase->x;		trianglePtr->p0.y = ptBase->y;
+		trianglePtr->p1.x = point->x;      	trianglePtr->p1.y = point->y;	point++;
+		trianglePtr->p2.x = point->x;    	trianglePtr->p2.y = point->y;
+		trianglePtr->c = colorIndex;
 	}
 }
 
 static void interpretPaletteData()
 {
-	unsigned char bitmaskH = *data++;
-	unsigned char bitmaskL = *data++;
+	uint8_t bitmaskH = *data++;
+	uint8_t bitmaskL = *data++;
 
-	int bitmask = (bitmaskH << 8) | bitmaskL;
+	uint16_t bitmask = (bitmaskH << 8) | bitmaskL;
 
-	for (int i = 0; i < 16; ++i) {
-		int palNum = i;
+	for (uint8_t i = 0; i < 16; ++i) {
+		uint8_t palNum = i;
 		if (bitmask & 0x8000) {
-			unsigned char colorH = *data++;
-			unsigned char colorL = *data++;
+			uint8_t colorH = *data++;
+			uint8_t colorL = *data++;
 
-			int color = (colorH << 8) | colorL;
+			uint16_t color = (colorH << 8) | colorL;
 
-			int r = (color >> 8) & 7;
-			int g = (color >> 4) & 7;
-			int b = color & 7;
+			uint8_t r = (color >> 8) & 7;
+			uint8_t g = (color >> 4) & 7;
+			uint8_t b = color & 7;
 			
 			//setSingleColorPal(palNum, r << 3, g << 3, b << 3);
 		}
@@ -88,7 +87,7 @@ static void interpretPaletteData()
 	}
 }
 
-static void interpretDescriptorSpecial(unsigned char descriptor)
+static void interpretDescriptorSpecial(uint8_t descriptor)
 {
 	switch (descriptor)
 	{
@@ -101,6 +100,7 @@ static void interpretDescriptorSpecial(unsigned char descriptor)
 	case 0xfe:
 	{
 		// End of frame and skip at next 64k block
+
 		++block64index;
 		data = &scene1_bin[block64index << 16];
 	}
@@ -117,24 +117,24 @@ static void interpretDescriptorSpecial(unsigned char descriptor)
 	}
 }
 
-static void interpretDescriptorNormal(unsigned char descriptor, int *polyNumVertices, int *colorIndex)
+static void interpretDescriptorNormal(uint8_t descriptor, uint8_t *polyNumVertices, uint8_t *colorIndex)
 {
-	*colorIndex = (int)((descriptor >> 4) & 15);
-	*polyNumVertices = (int)(descriptor & 15);
+	*colorIndex = (uint8_t)((descriptor >> 4) & 15);
+	*polyNumVertices = (uint8_t)(descriptor & 15);
 }
 
 static void interpretIndexedMode()
 {
 	static Point2D vi[256];
 
-	unsigned char descriptor = 0;
-	int polyPaletteIndex, polyNumVertices;
+	uint8_t descriptor = 0;
+	uint8_t polyPaletteIndex, polyNumVertices;
 
-	int vertexNum = *data++;
+	uint8_t vertexNum = *data++;
 
-	for (int i = 0; i < vertexNum; ++i) {
-		vi[i].x = (int)*data++;
-		vi[i].y = (int)*data++;
+	for (uint8_t i = 0; i < vertexNum; ++i) {
+		vi[i].x = *data++;
+		vi[i].y = *data++;
 	}
 
 	while(true) {
@@ -143,8 +143,8 @@ static void interpretIndexedMode()
 
 		interpretDescriptorNormal(descriptor, &polyNumVertices, &polyPaletteIndex);
 
-		for (int n = 0; n < polyNumVertices; ++n) {
-			int vertexId = *data++;
+		for (uint8_t n = 0; n < polyNumVertices; ++n) {
+			uint8_t vertexId = *data++;
 
 			pt[n].x = vi[vertexId].x;
 			pt[n].y = vi[vertexId].y;
@@ -156,8 +156,8 @@ static void interpretIndexedMode()
 
 static void interpretNonIndexedMode()
 {
-	unsigned char descriptor = 0;
-	int polyPaletteIndex, polyNumVertices;
+	uint8_t descriptor = 0;
+	uint8_t polyPaletteIndex, polyNumVertices;
 
 	while (true) {
 		descriptor = *data++;
@@ -165,7 +165,7 @@ static void interpretNonIndexedMode()
 
 		interpretDescriptorNormal(descriptor, &polyNumVertices, &polyPaletteIndex);
 
-		for (int n = 0; n < polyNumVertices; ++n) {
+		for (uint8_t n = 0; n < polyNumVertices; ++n) {
 			pt[n].x = *data++;
 			pt[n].y = *data++;
 		}
@@ -177,11 +177,10 @@ static void interpretNonIndexedMode()
 
 static void decodeFrame()
 {
-	unsigned char flags = *data++;
+	uint8_t flags = *data++;
 
 	mustClearScreen = false;
-	numQuads = 0;
-	quadPtr = &quads[0];
+	nextTriangle = 0;
 
 	if (flags & 1) {
 		mustClearScreen = true;
@@ -197,16 +196,12 @@ static void decodeFrame()
 	}
 }
 
-static void renderPolygons()
-{
-}
-
 void fxAnimRun()
 {
 	decodeFrame();
 	
 	if (mustClearScreen) {
-		//clearScreenSpecial();
+		vdp_clear_graphics();
 	}
 	renderPolygons();
 }
