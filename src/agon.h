@@ -44,7 +44,6 @@ void agon_swapBuffers();
 
 void setPal(uint8_t color, uint8_t r, uint8_t g, uint8_t b);
 void setPal8(uint8_t index, uint8_t c);
-void updatePal();
 
 void agon_clearBuffer(uint16_t bufferId);
 void agon_writeBlockToBuffer(uint16_t bufferId, uint16_t length);
@@ -57,5 +56,7 @@ void agon_setCursorPosition(uint8_t x, uint8_t y);
 
 void initAgonFunctions();
 char *getBigBuffer();
+
+void updatePal();
 
 #endif

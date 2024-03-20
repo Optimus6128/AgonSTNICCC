@@ -62,7 +62,7 @@ static void agonInit()
 	vdp_set_key_event_handler(keyEventHandler);
 
 	initAgonFunctions();
-	initMathUtils();
+	//initMathUtils();
 }
 
 static void agonDeInit()
@@ -78,7 +78,10 @@ static void agonDeInit()
 
 static void initDemo()
 {
-	agon_set_video_mode(8);
+	//132 640x240x4bpp
+	//137 320x240x4bpp
+	//141 320x200x4bpp
+	agon_set_video_mode(132);
 
 	vdp_cursor_enable(false);
 	vdp_logical_scr_dims(false);
@@ -112,6 +115,8 @@ static void runDemo()
 			fxAnimRun();
 
 			drawFps();
+
+			agon_swapBuffers();
 		}
 
 		// Janky solution for now
@@ -123,7 +128,6 @@ static void runDemo()
 		} else {
 			vdp_update_key_state();
 		}
-			
 	};
 }
 

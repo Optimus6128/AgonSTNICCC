@@ -39,11 +39,18 @@ static uint8_t nextTriangle = 0;
 static bool mustClearScreen = false;
 
 
+#define SCALE_X 2
+#define OFFSET_X (SCALE_X * 32)
+
 static void renderPolygons()
 {
 	for (uint8_t i=0; i<nextTriangle; ++i) {
 		Triangle *tri = &triangles[i];
-		agon_draw_triangle(tri->p0.x, tri->p0.y, tri->p1.x, tri->p1.y, tri->p2.x, tri->p2.y, tri->c);
+		agon_draw_triangle(OFFSET_X + SCALE_X * (int16_t)tri->p0.x, tri->p0.y, OFFSET_X + SCALE_X * (int16_t)tri->p1.x, tri->p1.y, OFFSET_X + SCALE_X * (int16_t)tri->p2.x, tri->p2.y, tri->c);
+		
+/*		agon_plot_pixel(OFFSET_X + (int16_t)tri->p0.x, tri->p0.y, tri->c);
+		agon_plot_pixel(OFFSET_X + (int16_t)tri->p1.x, tri->p1.y, tri->c);
+		agon_plot_pixel(OFFSET_X + (int16_t)tri->p2.x, tri->p2.y, tri->c);*/
 	}
 }
 
@@ -67,7 +74,7 @@ static void interpretPaletteData()
 	uint8_t bitmaskH = *data++;
 	uint8_t bitmaskL = *data++;
 
-	uint16_t bitmask = (bitmaskH << 8) | bitmaskL;
+	uint16_t bitmask = ((uint16_t)bitmaskH << 8) | (uint16_t)bitmaskL;
 
 	for (uint8_t i = 0; i < 16; ++i) {
 		uint8_t palNum = i;
@@ -81,10 +88,11 @@ static void interpretPaletteData()
 			uint8_t g = (color >> 4) & 7;
 			uint8_t b = color & 7;
 			
-			//setSingleColorPal(palNum, r << 3, g << 3, b << 3);
+			setPal(palNum, r<<5, g<<5, b<<5);
 		}
 		bitmask <<= 1;
 	}
+	updatePal();
 }
 
 static void interpretDescriptorSpecial(uint8_t descriptor)
@@ -115,6 +123,7 @@ static void interpretDescriptorSpecial(uint8_t descriptor)
 	}
 	break;
 	}
+	printf("%d ", block64index);
 }
 
 static void interpretDescriptorNormal(uint8_t descriptor, uint8_t *polyNumVertices, uint8_t *colorIndex)
