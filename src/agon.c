@@ -25,6 +25,21 @@ char fullPalBuffer[6*16] = {
 //#define BIG_BUFFER_SIZE 65536
 //static char* bigBuffer = NULL;
 
+
+void agon_set_tcol(uint8_t color)
+{
+	char buffer_set_color[] = {17, color};
+
+	VDP_WRITE(buffer_set_color, sizeof(buffer_set_color))
+}
+
+void agon_set_gcol(uint8_t mode, uint8_t color)
+{
+  char buffer_set_color[] = {18, mode, color};
+
+  VDP_WRITE(buffer_set_color, sizeof(buffer_set_color))
+}
+
 void agon_plot_pixel(int16_t x, int16_t y, uint8_t color)
 {
   char buffer_set_color[] = {18, 0, color};
@@ -32,6 +47,13 @@ void agon_plot_pixel(int16_t x, int16_t y, uint8_t color)
 
   char buffer_plot_pixel[] = {25, 69, LH_ARGS(x), LH_ARGS(y)};
   VDP_WRITE(buffer_plot_pixel, sizeof(buffer_plot_pixel))
+}
+
+void agon_fill_rectangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint8_t color)
+{
+	char buffer[] = { 18,0,color, 25,69,LH_ARGS(x0),LH_ARGS(y0), 25,101,LH_ARGS(x1),LH_ARGS(y1) };
+
+	VDP_WRITE(buffer, sizeof(buffer));
 }
 
 void agon_draw_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t color)

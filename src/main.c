@@ -78,10 +78,11 @@ static void agonDeInit()
 
 static void initDemo()
 {
-	//132 640x240x4bpp
-	//137 320x240x4bpp
-	//141 320x200x4bpp
-	agon_set_video_mode(132);
+	#ifdef HIGH_RES
+		agon_set_video_mode(132);	// 640x240x4bpp
+	#else
+		agon_set_video_mode(141);	// 320x200x4bpp
+	#endif
 
 	vdp_cursor_enable(false);
 	vdp_logical_scr_dims(false);
@@ -93,6 +94,8 @@ static void drawFps()
 {
 	static uint16_t fps = 0;
 	static uint16_t framesPassed = 0;
+
+	agon_set_tcol(3);
 
 	agon_setCursorPosition(0,0);
 	printf("%d  ", fps);
@@ -109,7 +112,7 @@ static void drawFps()
 static void runDemo()
 {
 	while(!quit) {	// not ESC, but is it from keyboard matrix?
-		if (noVsync || prevRefresh != nextRefresh) {
+		//if (noVsync || prevRefresh != nextRefresh) {
 			prevRefresh = nextRefresh;
 
 			fxAnimRun();
@@ -117,7 +120,7 @@ static void runDemo()
 			drawFps();
 
 			agon_swapBuffers();
-		}
+		//}
 
 		// Janky solution for now
 		if (noVsync) {
