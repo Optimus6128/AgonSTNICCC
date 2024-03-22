@@ -1,14 +1,5 @@
 #include "fx_anim.h"
 
-#include "agon.h"
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-
-#include <mos_api.h>
-
 
 typedef struct Point2D
 {
@@ -27,7 +18,7 @@ typedef struct vec2i
 }vec2i;
 
 
-static unsigned char *scene1_bin;
+static uint8_t *scene1_bin;
 static uint8_t block64index;
 
 static uint8_t *data;
@@ -39,6 +30,8 @@ static uint8_t nextTriangle;
 
 static bool mustClearScreen;
 
+static FILE *animFile;
+static int animFileSize;
 
 static char *trianglesBuffer;
 
@@ -64,15 +57,52 @@ static void initTrianglesBuffer()
 	}
 }
 
-static void initAnim()
+static void calcFileSize()
 {
-	mustClearScreen = false;
-	nextTriangle = 0;
-	block64index = 0;
-	scene1_bin = malloc(65536);
-	triangles = malloc(256 * sizeof(Triangle));
+	fseek(animFile, 0, SEEK_END);
+	animFileSize = ftell(animFile);
+	fseek(animFile, 0, SEEK_SET);
+}
 
-	initTrianglesBuffer();
+static bool openAnimFileIfNeeded()
+{
+	if (block64index==0) {
+		fclose(animFile);
+		animFile = fopen("scene1a.bin", "rb");
+		calcFileSize();
+	}
+	if (block64index==5) {
+		fclose(animFile);
+		animFile = fopen("scene1b.bin", "rb");
+		calcFileSize();
+	}
+
+	if (!animFile) {
+		printf("Error Loading File\n");
+		return false;
+	}
+
+	return true;
+}
+
+static bool initAnimFileStream()
+{
+	return openAnimFileIfNeeded();
+}
+
+static void loadNextBlock()
+{
+	openAnimFileIfNeeded();
+
+	const int blockStart = (int)(block64index % 5) * 65536;
+	int blockSize = 65536;
+	if (blockStart + blockSize > animFileSize) {
+		blockSize = animFileSize - blockStart;
+	}
+
+	data = scene1_bin;
+	//fseek(animFile, blockStart, SEEK_SET);
+	fread(data,blockSize, 1, animFile);
 }
 
 static void renderPolygons()
@@ -116,23 +146,6 @@ static void addPolygon(Point2D *point, uint8_t numVertices, uint8_t colorIndex)
 		trianglePtr->p2.x = point->x;    	trianglePtr->p2.y = point->y;
 		trianglePtr->c = colorIndex;
 	}
-}
-
-static bool loadNextBlock()
-{
-	FILE *f = fopen("scene1.bin", "rb");
-
-	if (f) {
-		data = scene1_bin;
-		fseek(f, (unsigned int)block64index * 65536, SEEK_CUR);
-		fread(data, 65536, 1, f);
-	} else {
-		printf("Error Loading File: scene1.bin\n");
-		return false;
-	}
-	return true;
-
-	fclose(f);
 }
 
 static void interpretPaletteData()
@@ -180,6 +193,7 @@ static void interpretDescriptorSpecial(uint8_t descriptor)
 			// That's all folks!
 
 			block64index = 0;
+			//fseek(animFile, 0, SEEK_SET);
 			loadNextBlock();
 		break;
 
@@ -267,15 +281,27 @@ static void decodeFrame()
 	}
 }
 
+
+bool fxAnimInit()
+{
+	mustClearScreen = false;
+	nextTriangle = 0;
+	block64index = 0;
+	scene1_bin = malloc(65536);
+	triangles = malloc(256 * sizeof(Triangle));
+
+	initTrianglesBuffer();
+	if (!openAnimFileIfNeeded()) {
+		return false;
+	}
+
+	loadNextBlock();
+
+	return true;
+}
+
 void fxAnimRun()
 {
-	static bool fxAnimInit = false;
-
-	if (!fxAnimInit) {
-		initAnim();
-		loadNextBlock();
-		fxAnimInit = true;
-	}
 	decodeFrame();
 	
 	if (mustClearScreen) {
@@ -283,4 +309,13 @@ void fxAnimRun()
 		//agon_fill_rectangle(0,0, 639, 239, 0);
 	}
 	renderPolygons();
+}
+
+void fxAnimFree()
+{
+	fclose(animFile);
+
+	free(trianglesBuffer);
+	free(scene1_bin);
+	free(triangles);
 }

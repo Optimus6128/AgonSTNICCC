@@ -76,7 +76,7 @@ static void agonDeInit()
 
 
 
-static void initDemo()
+static bool initDemo()
 {
 	#ifdef HIGH_RES
 		agon_set_video_mode(132);	// 640x240x4bpp
@@ -88,6 +88,8 @@ static void initDemo()
 	vdp_logical_scr_dims(false);
 
 	prevHandler = mos_setintvector(0x32, &vblank_handler);
+
+	return fxAnimInit();
 }
 
 static void drawFps()
@@ -132,15 +134,17 @@ static void runDemo()
 			vdp_update_key_state();
 		}
 	};
+
+	fxAnimFree();
 }
 
 int main(void)
 {
 	agonInit();
 
-	initDemo();
-
-	runDemo();
+	if (initDemo()) {
+		runDemo();
+	}
 
 	agonDeInit();
 
