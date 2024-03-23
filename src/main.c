@@ -114,7 +114,7 @@ static void drawFps()
 static void runDemo()
 {
 	while(!quit) {	// not ESC, but is it from keyboard matrix?
-		//if (noVsync || prevRefresh != nextRefresh) {
+		if (noVsync || prevRefresh != nextRefresh) {
 			prevRefresh = nextRefresh;
 
 			fxAnimRun();
@@ -122,7 +122,7 @@ static void runDemo()
 			drawFps();
 
 			agon_swapBuffers();
-		//}
+		}
 
 		// Janky solution for now
 		if (noVsync) {

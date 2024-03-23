@@ -28,8 +28,6 @@ static Point2D pt[16];
 static Triangle *triangles;
 static uint8_t nextTriangle;
 
-static bool mustClearScreen;
-
 static FILE *animFile;
 static int animFileSize;
 
@@ -46,7 +44,10 @@ static char *trianglesBuffer;
 #define OFFSET_Y (SCALE_X-1) * 20
 
 
+#define VDP270_OR_ABOVE
+
 static char triBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,85,0,0,0,0 };
+static char polyBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0 };	// 16 points max
 
 static void initTrianglesBuffer()
 {
@@ -135,17 +136,30 @@ static void renderPolygons()
 
 static void addPolygon(Point2D *point, uint8_t numVertices, uint8_t colorIndex)
 {
-	const uint8_t numTriangles = numVertices - 2;
+	#ifndef VDP270_OR_ABOVE
+		const uint8_t numTriangles = numVertices - 2;
 
-	Point2D *ptBase = point++;
+		Point2D *ptBase = point++;
 
-	for (uint8_t i=0; i<numTriangles; ++i) {
-		Triangle *trianglePtr = &triangles[nextTriangle++];
-		trianglePtr->p0.x = ptBase->x;		trianglePtr->p0.y = ptBase->y;
-		trianglePtr->p1.x = point->x;      	trianglePtr->p1.y = point->y;	point++;
-		trianglePtr->p2.x = point->x;    	trianglePtr->p2.y = point->y;
-		trianglePtr->c = colorIndex;
-	}
+		for (uint8_t i=0; i<numTriangles; ++i) {
+			Triangle *trianglePtr = &triangles[nextTriangle++];
+			trianglePtr->p0.x = ptBase->x;		trianglePtr->p0.y = ptBase->y;
+			trianglePtr->p1.x = point->x;      	trianglePtr->p1.y = point->y;	point++;
+			trianglePtr->p2.x = point->x;    	trianglePtr->p2.y = point->y;
+			trianglePtr->c = colorIndex;
+		}
+	#else
+		int16_t *dst16 = (int16_t*)&polyBuffer[5];
+
+		polyBuffer[2] = colorIndex;
+		for (uint8_t i=0; i<numVertices; ++i) {
+			*dst16++ = (int16_t)(OFFSET_X + SCALE_X * (int16_t)point->x);
+			*dst16 = (int16_t)(OFFSET_Y + point->y);
+			point++;
+			dst16 += 2;
+		}
+		VDP_WRITE(polyBuffer, 3 + numVertices * 6);
+	#endif
 }
 
 static void interpretPaletteData()
@@ -264,11 +278,11 @@ static void decodeFrame()
 {
 	uint8_t flags = *data++;
 
-	mustClearScreen = false;
 	nextTriangle = 0;
 
 	if (flags & 1) {
-		mustClearScreen = true;
+		vdp_clear_graphics();
+		//agon_fill_rectangle(0,0, 639, 239, 0);
 	} 
 	if (flags & 2) {
 		interpretPaletteData();
@@ -284,7 +298,6 @@ static void decodeFrame()
 
 bool fxAnimInit()
 {
-	mustClearScreen = false;
 	nextTriangle = 0;
 	block64index = 0;
 	scene1_bin = malloc(65536);
@@ -303,12 +316,12 @@ bool fxAnimInit()
 void fxAnimRun()
 {
 	decodeFrame();
-	
-	if (mustClearScreen) {
-		vdp_clear_graphics();
-		//agon_fill_rectangle(0,0, 639, 239, 0);
-	}
-	renderPolygons();
+
+	#ifndef VDP270_OR_ABOVE
+		// If not VDP270, addPolygon from decodeFrame will have also split the n-gons to triangles in a structure for regular per polygon rendering
+		// Else n-gons will be rendered earlier through the Fill-Path VDP 270 command, so we can skip this
+		renderPolygons();
+	#endif
 }
 
 void fxAnimFree()
