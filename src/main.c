@@ -6,7 +6,6 @@
 
 #include <mos_api.h>
 
-#include "math_utils.h"
 #include "fx_anim.h"
 
 
@@ -60,9 +59,6 @@ static void agonInit()
 
 	vdp_key_init();
 	vdp_set_key_event_handler(keyEventHandler);
-
-	initAgonFunctions();
-	//initMathUtils();
 }
 
 static void agonDeInit()
@@ -119,7 +115,9 @@ static void runDemo()
 
 			fxAnimRun();
 
-			drawFps();
+			if (animationLoaded) {
+				drawFps();
+			}
 
 			agon_swapBuffers();
 		}

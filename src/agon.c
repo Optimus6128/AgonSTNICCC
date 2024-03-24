@@ -22,9 +22,6 @@ char fullPalBuffer[6*16] = {
 	19, 15, -1, 0, 0, 0
 };
 
-//#define BIG_BUFFER_SIZE 65536
-//static char* bigBuffer = NULL;
-
 
 void agon_set_tcol(uint8_t color)
 {
@@ -91,21 +88,6 @@ void agon_clearBuffer(uint16_t bufferId)
 	VDP_WRITE(buffer, sizeof(buffer))
 }
 
-/*void agon_writeBlockToBuffer(uint16_t bufferId, uint16_t length)
-{
-	bigBuffer[0] = 23;
-	bigBuffer[1] = 0;
-	bigBuffer[2] = 0xA0;
-	bigBuffer[3] = LB(bufferId);
-	bigBuffer[4] = HB(bufferId);
-	bigBuffer[5] = 0;
-	bigBuffer[6] = LB(length);
-	bigBuffer[7] = HB(length);
-
-	// You are expected to fill from 8 and above, before this call
-	VDP_WRITE(bigBuffer, 8 + length)
-}*/
-
 void agon_createBuffer(uint16_t bufferId, uint16_t length)
 {
 	char buffer[] = {23, 0, 0xA0, LH_ARGS(bufferId), 3, LH_ARGS(length)};
@@ -120,11 +102,6 @@ void agon_selectBitmapFromBufferId(uint16_t bufferId, uint16_t width, uint16_t h
 
 	VDP_WRITE(buffer, sizeof(buffer))
 }
-
-/*char *getBigBuffer()
-{
-	return &bigBuffer[8];
-}*/
 
 void setPal(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
 {
@@ -147,7 +124,10 @@ void updatePal()
 	VDP_WRITE(fullPalBuffer, sizeof(fullPalBuffer))
 }
 
-void initAgonFunctions()
+void agon_call_buffer(uint16_t id)
 {
-	//bigBuffer = malloc(BIG_BUFFER_SIZE);
+	char buffer[] = { 23,0,0xA0, LH_ARGS(id), 1 };
+
+	VDP_WRITE(buffer, sizeof(buffer));
 }
+

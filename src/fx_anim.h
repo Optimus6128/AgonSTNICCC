@@ -12,9 +12,10 @@
 
 #include <mos_api.h>
 
-
 bool fxAnimInit();
 void fxAnimRun();
 void fxAnimFree();
+
+extern bool animationLoaded;
 
 #endif

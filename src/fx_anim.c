@@ -33,6 +33,11 @@ static int animFileSize;
 
 static char *trianglesBuffer;
 
+static uint16_t frameNum;
+static uint16_t totalFrames;
+
+bool animationLoaded = false;
+
 
 #ifdef HIGH_RES
 	#define SCALE_X 2
@@ -49,8 +54,24 @@ static char *trianglesBuffer;
 static char triBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,85,0,0,0,0 };
 static char polyBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0 };	// 16 points max
 
-static char vdpBuffer[8192];
+static char vdpBufferedCommands[8192];
+static char *vdpBuffer;
 static int vdpBufferIndex = 0;
+
+/*void agon_writeBlockToBuffer(uint16_t bufferId, uint16_t length)
+{
+	bigBuffer[0] = 23;
+	bigBuffer[1] = 0;
+	bigBuffer[2] = 0xA0;
+	bigBuffer[3] = LB(bufferId);
+	bigBuffer[4] = HB(bufferId);
+	bigBuffer[5] = 0;
+	bigBuffer[6] = LB(length);
+	bigBuffer[7] = HB(length);
+
+	// You are expected to fill from 8 and above, before this call
+	VDP_WRITE(bigBuffer, 8 + length)
+}*/
 
 static void copyToVdbBuffer(char *src, int size)
 {
@@ -225,9 +246,12 @@ static void interpretDescriptorSpecial(uint8_t descriptor)
 		case 0xfd:
 			// That's all folks!
 
-			block64index = 0;
+			//block64index = 0;
 			//fseek(animFile, 0, SEEK_SET);
-			loadNextBlock();
+			//loadNextBlock();
+
+			animationLoaded = true;
+			totalFrames = frameNum;
 		break;
 
 		default:
@@ -318,10 +342,18 @@ static void decodeFrame()
 
 bool fxAnimInit()
 {
+	animationLoaded = false;
+	frameNum = 0;
 	nextTriangle = 0;
 	block64index = 0;
 	scene1_bin = malloc(65536);
 	triangles = malloc(256 * sizeof(Triangle));
+
+	vdpBuffer = &vdpBufferedCommands[8];
+	vdpBufferedCommands[0] = 23;
+	vdpBufferedCommands[1] = 0;
+	vdpBufferedCommands[2] = 0xA0;
+	vdpBufferedCommands[5] = 0;
 
 	initTrianglesBuffer();
 	if (!openAnimFileIfNeeded()) {
@@ -335,15 +367,35 @@ bool fxAnimInit()
 
 void fxAnimRun()
 {
-	decodeFrame();
+	if (!animationLoaded) {
+		agon_setCursorPosition(0,0);
+		printf("%d / 1800", frameNum+1);
 
-	#ifndef VDP270_OR_ABOVE
-		// If not VDP270, addPolygon from decodeFrame will have also split the n-gons to triangles in a structure for regular per polygon rendering
-		// Else n-gons will be rendered earlier through the Fill-Path VDP 270 command, so we can skip this
-		renderPolygons();
-	#endif
+		decodeFrame();
 
-	VDP_WRITE(vdpBuffer, vdpBufferIndex);
+		#ifndef VDP270_OR_ABOVE
+			// If not VDP270, addPolygon from decodeFrame will have also split the n-gons to triangles in a structure for regular per polygon rendering
+			// Else n-gons will be rendered earlier through the Fill-Path VDP 270 command, so we can skip this
+			renderPolygons();
+		#endif
+
+		vdpBufferedCommands[3] = LB(frameNum);
+		vdpBufferedCommands[4] = HB(frameNum);
+		vdpBufferedCommands[6] = LB(vdpBufferIndex);
+		vdpBufferedCommands[7] = HB(vdpBufferIndex);
+
+		VDP_WRITE(vdpBufferedCommands, 8 + vdpBufferIndex);
+
+		if (animationLoaded) {
+			frameNum = 0;
+		}
+	} else {
+		if (frameNum==totalFrames) {
+			frameNum = 0;
+		}
+		agon_call_buffer(frameNum);
+	}
+	frameNum++;
 }
 
 void fxAnimFree()
