@@ -17,5 +17,6 @@ void fxAnimRun();
 void fxAnimFree();
 
 extern bool animationLoaded;
+extern bool animationLoopedOnce;
 
 #endif

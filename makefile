@@ -6,7 +6,7 @@ NAME = DEMO
 DESCRIPTION = "Ag C Toolchain Demo"
 COMPRESSED = NO
 
-CFLAGS = -Wall -Wextra -Wno-unused -O0
+CFLAGS = -Wall -Wextra -Wno-unused -Oz
 CXXFLAGS = -Wall -Wextra -Wno-unused -Oz
 
 # ----------------------------

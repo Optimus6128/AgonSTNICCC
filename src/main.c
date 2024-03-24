@@ -22,6 +22,8 @@ static uint16_t lastSecRefresh = 0;
 static uint16_t prevRefresh = 0;
 static uint16_t nextRefresh = 0;
 
+static uint16_t frameStart;
+
 // vblank.asm
 extern void vblank_handler();
 
@@ -63,6 +65,8 @@ static void agonInit()
 
 static void agonDeInit()
 {
+	agon_clearBuffer(-1);
+
 	agon_set_video_mode(1);		// default system mode
 	vdp_cursor_enable(true);
 	vdp_logical_scr_dims(true);
@@ -77,15 +81,20 @@ static bool initDemo()
 	#ifdef HIGH_RES
 		agon_set_video_mode(132);	// 640x240x4bpp
 	#else
-		agon_set_video_mode(141);	// 320x200x4bpp
+		agon_set_video_mode(137);	// 320x240x4bpp
 	#endif
-
+	
 	vdp_cursor_enable(false);
 	vdp_logical_scr_dims(false);
 
 	prevHandler = mos_setintvector(0x32, &vblank_handler);
 
-	return fxAnimInit();
+	if (!fxAnimInit()) {
+		return false;
+	}
+
+	frameStart = nextRefresh;
+	return true;
 }
 
 static void drawFps()
@@ -107,6 +116,20 @@ static void drawFps()
 	++framesPassed;
 }
 
+static void drawBenchResult()
+{
+	static int benchResult = 0;
+	static bool benchResultCalculated = false;
+
+	if (benchResultCalculated) {
+		agon_setCursorPosition(0,29);
+		printf("%d", benchResult);
+	} else {
+		benchResult = (1800 * 60) / (nextRefresh - frameStart);
+		benchResultCalculated = true;
+	}
+}
+
 static void runDemo()
 {
 	while(!quit) {	// not ESC, but is it from keyboard matrix?
@@ -117,6 +140,9 @@ static void runDemo()
 
 			if (animationLoaded) {
 				drawFps();
+			}
+			if (animationLoopedOnce) {
+				drawBenchResult();
 			}
 
 			agon_swapBuffers();

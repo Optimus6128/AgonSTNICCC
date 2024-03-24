@@ -22,6 +22,7 @@ static uint8_t *scene1_bin;
 static uint8_t block64index;
 
 static uint8_t *data;
+static int dataIndex = 0;
 
 static Point2D pt[16];
 
@@ -34,9 +35,9 @@ static int animFileSize;
 static char *trianglesBuffer;
 
 static uint16_t frameNum;
-static uint16_t totalFrames;
 
 bool animationLoaded = false;
+bool animationLoopedOnce = false;
 
 
 #ifdef HIGH_RES
@@ -58,20 +59,6 @@ static char vdpBufferedCommands[8192];
 static char *vdpBuffer;
 static int vdpBufferIndex = 0;
 
-/*void agon_writeBlockToBuffer(uint16_t bufferId, uint16_t length)
-{
-	bigBuffer[0] = 23;
-	bigBuffer[1] = 0;
-	bigBuffer[2] = 0xA0;
-	bigBuffer[3] = LB(bufferId);
-	bigBuffer[4] = HB(bufferId);
-	bigBuffer[5] = 0;
-	bigBuffer[6] = LB(length);
-	bigBuffer[7] = HB(length);
-
-	// You are expected to fill from 8 and above, before this call
-	VDP_WRITE(bigBuffer, 8 + length)
-}*/
 
 static void copyToVdbBuffer(char *src, int size)
 {
@@ -114,11 +101,6 @@ static bool openAnimFileIfNeeded()
 	}
 
 	return true;
-}
-
-static bool initAnimFileStream()
-{
-	return openAnimFileIfNeeded();
 }
 
 static void loadNextBlock()
@@ -202,18 +184,32 @@ static void vdpBuffer_setPal(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
 	vdpBuffer[vdpBufferIndex++] = b;
 }
 
+uint8_t grabData()
+{
+	const uint8_t c = *data++;
+	dataIndex++;	// For some f****g reason, -Oz would break if I didn't add this line.
+					// Previously this grabData didn't exist. I just did *data++ at all places
+					// For debugging purposes only I added this dataIndex so that I can print it and see where it goes wrong.
+					// The decoder stops reading bytes before the frame ended if not -O0
+					// And for some reason adding this dataIndex++ fixes it (changes compiler generation I guess)
+					// I did look side by side on the generated assembly and could still not find an explanation
+					// I hate that shit!!! It means, if I change something in the future and I have bugs, I don't know if it's me or the compiler.
+					// Also -O0 seems to be ok since we load the data and then it's all buffered commands on the VDP. I could release this with no optimizations if I wanted. But maybe the decoding could be a bit slower, maybe..
+	return c;
+}
+
 static void interpretPaletteData()
 {
-	uint8_t bitmaskH = *data++;
-	uint8_t bitmaskL = *data++;
+	uint8_t bitmaskH = grabData();
+	uint8_t bitmaskL = grabData();
 
 	uint16_t bitmask = ((uint16_t)bitmaskH << 8) | (uint16_t)bitmaskL;
 
 	for (uint8_t i = 0; i < 16; ++i) {
 		uint8_t palNum = i;
 		if (bitmask & 0x8000) {
-			uint8_t colorH = *data++;
-			uint8_t colorL = *data++;
+			uint8_t colorH = grabData();
+			uint8_t colorL = grabData();
 
 			uint16_t color = (colorH << 8) | colorL;
 
@@ -251,7 +247,6 @@ static void interpretDescriptorSpecial(uint8_t descriptor)
 			//loadNextBlock();
 
 			animationLoaded = true;
-			totalFrames = frameNum;
 		break;
 
 		default:
@@ -272,21 +267,21 @@ static void interpretIndexedMode()
 	uint8_t descriptor = 0;
 	uint8_t polyPaletteIndex, polyNumVertices;
 
-	uint8_t vertexNum = *data++;
+	uint8_t vertexNum = grabData();
 
 	for (uint8_t i = 0; i < vertexNum; ++i) {
-		vi[i].x = *data++;
-		vi[i].y = *data++;
+		vi[i].x = grabData();
+		vi[i].y = grabData();
 	}
 
 	while(true) {
-		descriptor = *data++;
+		descriptor = grabData();
 		if (descriptor >= 0xfd) break;
 
 		interpretDescriptorNormal(descriptor, &polyNumVertices, &polyPaletteIndex);
 
 		for (uint8_t n = 0; n < polyNumVertices; ++n) {
-			uint8_t vertexId = *data++;
+			uint8_t vertexId = grabData();
 
 			pt[n].x = vi[vertexId].x;
 			pt[n].y = vi[vertexId].y;
@@ -302,14 +297,14 @@ static void interpretNonIndexedMode()
 	uint8_t polyPaletteIndex, polyNumVertices;
 
 	while (true) {
-		descriptor = *data++;
+		descriptor = grabData();
 		if (descriptor >= 0xfd) break;
 
 		interpretDescriptorNormal(descriptor, &polyNumVertices, &polyPaletteIndex);
 
 		for (uint8_t n = 0; n < polyNumVertices; ++n) {
-			pt[n].x = *data++;
-			pt[n].y = *data++;
+			pt[n].x = grabData();
+			pt[n].y = grabData();
 		}
 		addPolygon(pt, polyNumVertices, polyPaletteIndex);
 	}
@@ -318,11 +313,11 @@ static void interpretNonIndexedMode()
 
 static void decodeFrame()
 {
-	uint8_t flags = *data++;
+	uint8_t flags = grabData();
 
 	nextTriangle = 0;
 	vdpBufferIndex = 0;
-
+	
 	if (flags & 1) {
 		//vdp_clear_graphics();
 		//agon_fill_rectangle(0,0, 639, 239, 0);
@@ -339,37 +334,15 @@ static void decodeFrame()
 	}
 }
 
-
-bool fxAnimInit()
+static void decodeAnimation()
 {
 	animationLoaded = false;
-	frameNum = 0;
-	nextTriangle = 0;
-	block64index = 0;
-	scene1_bin = malloc(65536);
-	triangles = malloc(256 * sizeof(Triangle));
+	frameNum = 1;
 
-	vdpBuffer = &vdpBufferedCommands[8];
-	vdpBufferedCommands[0] = 23;
-	vdpBufferedCommands[1] = 0;
-	vdpBufferedCommands[2] = 0xA0;
-	vdpBufferedCommands[5] = 0;
-
-	initTrianglesBuffer();
-	if (!openAnimFileIfNeeded()) {
-		return false;
-	}
-
-	loadNextBlock();
-
-	return true;
-}
-
-void fxAnimRun()
-{
-	if (!animationLoaded) {
+	do {
 		agon_setCursorPosition(0,0);
-		printf("%d / 1800", frameNum+1);
+		printf("%d / 1800", frameNum);
+		agon_swapBuffers();
 
 		decodeFrame();
 
@@ -386,16 +359,48 @@ void fxAnimRun()
 
 		VDP_WRITE(vdpBufferedCommands, 8 + vdpBufferIndex);
 
-		if (animationLoaded) {
-			frameNum = 0;
-		}
-	} else {
-		if (frameNum==totalFrames) {
-			frameNum = 0;
-		}
-		agon_call_buffer(frameNum);
+		frameNum++;
+	} while(!animationLoaded);
+}
+
+bool fxAnimInit()
+{
+	nextTriangle = 0;
+	block64index = 0;
+	scene1_bin = malloc(65536);
+	triangles = malloc(256 * sizeof(Triangle));
+
+	vdpBuffer = &vdpBufferedCommands[8];
+	vdpBufferedCommands[0] = 23;
+	vdpBufferedCommands[1] = 0;
+	vdpBufferedCommands[2] = 0xA0;
+	vdpBufferedCommands[5] = 0;
+
+	initTrianglesBuffer();
+	if (!openAnimFileIfNeeded()) {
+		return false;
 	}
+	loadNextBlock();
+
+	decodeAnimation();
+
+	animationLoopedOnce = false;
+	frameNum = 1;
+
+	return true;
+}
+
+void fxAnimRun()
+{
+	agon_call_buffer(frameNum);
+
 	frameNum++;
+	if (frameNum > 1800) {
+		frameNum = 1;
+		if (!animationLoopedOnce) {
+			animationLoopedOnce = true;
+		}
+	}
 }
 
 void fxAnimFree()
