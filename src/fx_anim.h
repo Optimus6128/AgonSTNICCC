@@ -2,6 +2,7 @@
 #define FX_ANIM_H
 
 #define HIGH_RES
+#define VDP270_OR_ABOVE
 
 #include "agon.h"
 
