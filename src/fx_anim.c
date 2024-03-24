@@ -49,6 +49,15 @@ static char *trianglesBuffer;
 static char triBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,85,0,0,0,0 };
 static char polyBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0 };	// 16 points max
 
+static char vdpBuffer[8192];
+static int vdpBufferIndex = 0;
+
+static void copyToVdbBuffer(char *src, int size)
+{
+	memcpy(&vdpBuffer[vdpBufferIndex], src, size);
+	vdpBufferIndex += size;
+}
+
 static void initTrianglesBuffer()
 {
 	trianglesBuffer = malloc(256 * sizeof(triBuffer));
@@ -131,7 +140,7 @@ static void renderPolygons()
 		dst += sizeof(triBuffer);
 	}
 
-	VDP_WRITE(trianglesBuffer, nextTriangle * sizeof(triBuffer));
+	copyToVdbBuffer(trianglesBuffer, nextTriangle * sizeof(triBuffer));
 }
 
 static void addPolygon(Point2D *point, uint8_t numVertices, uint8_t colorIndex)
@@ -158,8 +167,18 @@ static void addPolygon(Point2D *point, uint8_t numVertices, uint8_t colorIndex)
 			point++;
 			dst16 += 2;
 		}
-		VDP_WRITE(polyBuffer, 3 + numVertices * 6);
+		copyToVdbBuffer(polyBuffer, 3 + numVertices * 6);
 	#endif
+}
+
+static void vdpBuffer_setPal(uint8_t index, uint8_t r, uint8_t g, uint8_t b)
+{
+	vdpBuffer[vdpBufferIndex++] = 19;
+	vdpBuffer[vdpBufferIndex++] = index;
+	vdpBuffer[vdpBufferIndex++] = -1;
+	vdpBuffer[vdpBufferIndex++] = r;
+	vdpBuffer[vdpBufferIndex++] = g;
+	vdpBuffer[vdpBufferIndex++] = b;
 }
 
 static void interpretPaletteData()
@@ -181,11 +200,11 @@ static void interpretPaletteData()
 			uint8_t g = (color >> 4) & 7;
 			uint8_t b = color & 7;
 			
-			setPal(palNum, r<<5, g<<5, b<<5);
+			vdpBuffer_setPal(palNum, r<<5, g<<5, b<<5);
 		}
 		bitmask <<= 1;
 	}
-	updatePal();
+	//updatePal();
 }
 
 static void interpretDescriptorSpecial(uint8_t descriptor)
@@ -273,16 +292,17 @@ static void interpretNonIndexedMode()
 	interpretDescriptorSpecial(descriptor);
 }
 
-
 static void decodeFrame()
 {
 	uint8_t flags = *data++;
 
 	nextTriangle = 0;
+	vdpBufferIndex = 0;
 
 	if (flags & 1) {
-		vdp_clear_graphics();
+		//vdp_clear_graphics();
 		//agon_fill_rectangle(0,0, 639, 239, 0);
+		vdpBuffer[vdpBufferIndex++] = 16;
 	} 
 	if (flags & 2) {
 		interpretPaletteData();
@@ -322,6 +342,8 @@ void fxAnimRun()
 		// Else n-gons will be rendered earlier through the Fill-Path VDP 270 command, so we can skip this
 		renderPolygons();
 	#endif
+
+	VDP_WRITE(vdpBuffer, vdpBufferIndex);
 }
 
 void fxAnimFree()
