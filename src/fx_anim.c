@@ -39,16 +39,7 @@ static uint16_t frameNum;
 bool animationLoaded = false;
 bool animationLoopedOnce = false;
 
-
-#ifdef HIGH_RES
-	#define SCALE_X 2
-#else
-	#define SCALE_X 1
-#endif
-
-#define OFFSET_X (SCALE_X * 32)
-#define OFFSET_Y 20
-
+static uint16_t offsetX, offsetY, scaleX, scaleY;
 
 static char triBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,85,0,0,0,0 };
 static char polyBuffer[] = { 18,0,0, 25,69,0,0,0,0, 25,69,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0, 25,221,0,0,0,0 };	// 16 points max
@@ -75,44 +66,24 @@ static void initTrianglesBuffer()
 
 static void calcFileSize()
 {
-	fseek(animFile, 0, SEEK_END);
-	animFileSize = ftell(animFile);
-	fseek(animFile, 0, SEEK_SET);
-}
-
-static bool openAnimFileIfNeeded()
-{
-	if (block64index==0) {
-		fclose(animFile);
-		animFile = fopen("scene1a.bin", "rb");
-		calcFileSize();
-	}
-	if (block64index==5) {
-		fclose(animFile);
-		animFile = fopen("scene1b.bin", "rb");
-		calcFileSize();
-	}
-
-	if (!animFile) {
-		printf("Error Loading File\n");
-		return false;
-	}
-
-	return true;
+	#ifndef EMULATOR
+		fseek(animFile, 0, SEEK_END);
+		animFileSize = ftell(animFile);
+		fseek(animFile, 0, SEEK_SET);
+	#else
+		animFileSize = 639976;	// For some reason, the above will return 524288 (exactly the 512k size of RAM). But on real hardware it returns 639976, the size of scene1.bin
+	#endif
 }
 
 static void loadNextBlock()
 {
-	openAnimFileIfNeeded();
-
-	const int blockStart = (int)(block64index % 5) * 65536;
+	const int blockStart = (int)block64index * 65536;
 	int blockSize = 65536;
 	if (blockStart + blockSize > animFileSize) {
 		blockSize = animFileSize - blockStart;
 	}
 
 	data = scene1_bin;
-	//fseek(animFile, blockStart, SEEK_SET);
 	fread(data,blockSize, 1, animFile);
 }
 
@@ -122,12 +93,12 @@ static void renderPolygons()
 	char *dst = trianglesBuffer;
 
 	for (uint8_t i=0; i<nextTriangle; ++i) {
-		const int16_t x0 = OFFSET_X + SCALE_X * (int16_t)tri->p0.x;
-		const int16_t y0 = OFFSET_Y + tri->p0.y;
-		const int16_t x1 = OFFSET_X + SCALE_X * (int16_t)tri->p1.x;
-		const int16_t y1 = OFFSET_Y + tri->p1.y;
-		const int16_t x2 = OFFSET_X + SCALE_X * (int16_t)tri->p2.x;
-		const int16_t y2 = OFFSET_Y + tri->p2.y;
+		const int16_t x0 = offsetX + scaleX * (int16_t)tri->p0.x;
+		const int16_t y0 = offsetY + scaleY * (int16_t)tri->p0.y;
+		const int16_t x1 = offsetX + scaleX * (int16_t)tri->p1.x;
+		const int16_t y1 = offsetY + scaleY * (int16_t)tri->p1.y;
+		const int16_t x2 = offsetX + scaleX * (int16_t)tri->p2.x;
+		const int16_t y2 = offsetY + scaleY * (int16_t)tri->p2.y;
 
 		dst[2] = tri->c;
 		*((int16_t*)&dst[5]) = x0;
@@ -163,8 +134,8 @@ static void addPolygon(Point2D *point, uint8_t numVertices, uint8_t colorIndex)
 
 		polyBuffer[2] = colorIndex;
 		for (uint8_t i=0; i<numVertices; ++i) {
-			*dst16++ = (int16_t)(OFFSET_X + SCALE_X * (int16_t)point->x);
-			*dst16 = (int16_t)(OFFSET_Y + point->y);
+			*dst16++ = (int16_t)(offsetX + scaleX * (int16_t)point->x);
+			*dst16 = (int16_t)(offsetY + scaleY * (int16_t)point->y);
 			point++;
 			dst16 += 2;
 		}
@@ -239,10 +210,6 @@ static void interpretDescriptorSpecial(uint8_t descriptor)
 
 		case 0xfd:
 			// That's all folks!
-
-			//block64index = 0;
-			//fseek(animFile, 0, SEEK_SET);
-			//loadNextBlock();
 
 			animationLoaded = true;
 		break;
@@ -363,6 +330,13 @@ static void decodeAnimation()
 
 bool fxAnimInit()
 {
+	scaleX = 1;
+	scaleY = 1;
+	if (resolutionSelection > 1) scaleX = 2;
+	if (resolutionSelection == 3) scaleY = 2;
+	offsetX = 32 * scaleX;
+	offsetY = 20 * scaleY;
+
 	nextTriangle = 0;
 	block64index = 0;
 	scene1_bin = malloc(65536);
@@ -375,9 +349,14 @@ bool fxAnimInit()
 	vdpBufferedCommands[5] = 0;
 
 	initTrianglesBuffer();
-	if (!openAnimFileIfNeeded()) {
+
+	animFile = fopen("scene1.bin", "rb");
+	if (!animFile) {
+		printf("File scene1.bin not found!\n");
 		return false;
 	}
+	calcFileSize();
+
 	loadNextBlock();
 
 	decodeAnimation();

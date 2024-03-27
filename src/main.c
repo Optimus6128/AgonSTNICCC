@@ -9,6 +9,8 @@
 #include "fx_anim.h"
 
 
+char resolutionSelection = 0;
+static uint8_t screenModes[4] = {1, 137,132,0};
 
 typedef void (*vblank_handler_t)();
 vblank_handler_t prevHandler;
@@ -74,15 +76,20 @@ static void agonDeInit()
 	mos_setintvector(0x32, prevHandler);
 }
 
-
-
 static bool initDemo()
 {
-	#ifdef HIGH_RES
-		agon_set_video_mode(132);	// 640x240x4bpp
-	#else
-		agon_set_video_mode(137);	// 320x240x4bpp
-	#endif
+	agon_setCursorPosition(0,0);
+	
+	printf("\nChoose resolution:\n\n");
+	printf("\t1) 320x240 - 16 colors (double buffered)\n");
+	printf("\t2) 640x240 - 16 colors (double buffered)\n");
+	printf("\t3) 640x480 - 16 colors (single buffered)\n\n");
+
+	do {
+		resolutionSelection = getch() - '0';
+	} while (!(resolutionSelection > 0 && resolutionSelection < 4));
+
+	agon_set_video_mode(screenModes[(int)resolutionSelection]);
 	
 	vdp_cursor_enable(false);
 	vdp_logical_scr_dims(false);
